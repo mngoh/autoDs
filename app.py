@@ -4,6 +4,10 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from aquarel import load_theme
+
+theme = load_theme("boxy_dark")
+theme.apply()
 
 # Initial Page Configurations
 st.set_page_config(
@@ -83,40 +87,54 @@ if uploaded_file is not None:
             ax.set_title(f"Frequency of {selected_col} Feature")
             st.pyplot(fig, width='content')
 
-    ##### NEXT SECTION ####### 
-    st.write("## Categorical Feature Interactions")   
-    catCols = [col for col in df.columns 
-            if df[col].dtype == "object" or pd.api.types.is_categorical_dtype(df[col])]    
-    cola, colb = st.columns([1,1])
-    with cola:    
-        cola = st.selectbox("Column A", catCols)
-    with colb:    
-        colb = st.selectbox("Column B", catCols)   
     
+    ##### NEXT SECTION ####### 
+    st.write("## Categorical Feature Interactions")
+
+    # Include object, categorical, and low-cardinality numeric columns
+    catCols = [
+        col for col in df.columns
+        if df[col].dtype == "object"
+        or pd.api.types.is_categorical_dtype(df[col])
+        or (pd.api.types.is_numeric_dtype(df[col]) and df[col].nunique() <= 50)  
+    ]
+
+    cola_col, colb_col = st.columns([1,1])
+    with cola_col:
+        cola = st.selectbox("Column A", catCols)
+    with colb_col:
+        colb = st.selectbox("Column B", catCols)
+
     # Slider
     slider1, slider2 = st.columns([1,1])
-    with slider1:    
-        count_n_cat = st.select_slider("Number of A Categories (Bars) to Display", options=list(range(0,10,1)))
-    with slider2:    
-        N = st.select_slider("Number of B Categories (Colors) to Display", options=list(range(0,50,1)), value=5)
+    with slider1:
+        count_n_cat = st.select_slider("Number of A Categories (Bars) to Display", options=list(range(1,11)), value=5)
+    with slider2:
+        N = st.select_slider("Number of B Categories (Colors) to Display", options=list(range(1,51)), value=5)
 
-    # 1 if 0
+    # Ensure minimum
     if count_n_cat == 0 or N == 0:
-        count_n_cat=N=1
+        count_n_cat = N = 1
 
+    # Convert to string for plotting
     a = df[cola].astype(str)
     b = df[colb].astype(str)
+
+    # Top N categories for colb
     top_categories = b.value_counts().nlargest(N).index
     b_filtered = b.where(b.isin(top_categories), other="Other")
 
+    # Cross-tab and sort by total
     cross_tab = pd.crosstab(a, b_filtered)
     cross_tab["__total__"] = cross_tab.sum(axis=1)
     cross_tab = cross_tab.sort_values("__total__", ascending=False).head(count_n_cat)
     cross_tab = cross_tab.drop(columns="__total__")
 
+    # Plot
     fig, ax = plt.subplots(figsize=(figSize))
     cross_tab.plot(kind="bar", stacked=True, ax=ax, colormap="tab20")
-    # ---- ADD % LABELS ----
+
+    # Add percentage labels
     for i, (index, row) in enumerate(cross_tab.iterrows()):
         total = row.sum()
         cumulative = 0
@@ -125,11 +143,11 @@ if uploaded_file is not None:
             if value > 0:
                 cumulative += value
                 percent = value / total * 100
-                if percent > 1:  # avoids labels on very tiny slices
+                if percent > 1:  # skip tiny slices
                     ax.text(
-                        i,                       # x position
-                        cumulative - value/2,    # y position (middle of the segment)
-                        f"{percent:.1f}%",       # label text
+                        i,
+                        cumulative - value/2,
+                        f"{percent:.1f}%",
                         ha="center", va="center",
                         color="white", fontsize=7, fontweight="bold"
                     )
@@ -140,6 +158,7 @@ if uploaded_file is not None:
     ax.legend(title=colb)
     plt.xticks(rotation=45, ha="right")
     st.pyplot(fig, width="content")
+
 
 else:
     st.info("Please upload a CSV file to begin.")
