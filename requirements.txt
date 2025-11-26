@@ -2,4 +2,4 @@ streamlit>=1.30.0
 pandas>=2.0
 matplotlib>=3.7
 numpy>=1.25
-aquarel>=0.1
+aquarel>=0.0.7
